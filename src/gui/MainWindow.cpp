@@ -3,6 +3,8 @@
 #include "WapPanel.h"
 #include "FilterPanel.h"
 #include "BatchDialog.h"
+#include "CropRotateDialog.h"
+#include "ComparisonGrid.h"
 #include "core/IoModule.h"
 
 #include <QApplication>
@@ -125,6 +127,14 @@ void MainWindow::setupMenus() {
     auto* redoAction = editMenu->addAction("&Redo", this, &MainWindow::onRedo,
                                             QKeySequence("Ctrl+Shift+Z"));
 
+    editMenu->addSeparator();
+
+    editMenu->addAction("Crop && &Rotate...", this, &MainWindow::onCropRotate,
+                         QKeySequence("Ctrl+R"));
+
+    editMenu->addAction("Toggle &Favorite Preset", this, &MainWindow::onToggleFavorite,
+                         QKeySequence("Ctrl+D"));
+
     // ---- View Menu ----
     auto* viewMenu = menuBar()->addMenu("&View");
 
@@ -141,6 +151,11 @@ void MainWindow::setupMenus() {
     viewMenu->addSeparator();
 
     viewMenu->addAction("Toggle &Dark/Light Theme", this, &MainWindow::onThemeToggle);
+
+    viewMenu->addSeparator();
+
+    viewMenu->addAction("Comparison &Grid...", this, &MainWindow::onComparisonGrid,
+                          QKeySequence("Ctrl+G"));
 
     // ---- Help Menu ----
     auto* helpMenu = menuBar()->addMenu("&Help");
@@ -573,6 +588,77 @@ void MainWindow::dropEvent(QDropEvent* event) {
             loadImageFromFile(path);
         }
         break; // Process first valid file only
+    }
+}
+
+// ============================================================
+// v1.1 Features
+// ============================================================
+
+void MainWindow::onCropRotate() {
+    if (!project_.hasImage()) {
+        QMessageBox::information(this, "No Image", "Please open an image first.");
+        return;
+    }
+
+    CropRotateDialog dialog(project_.currentImage(), this);
+    if (dialog.exec() == QDialog::Accepted) {
+        Image result = dialog.result();
+        if (!result.isEmpty()) {
+            project_.setCurrentImage(result, "Crop & Rotate");
+            canvas_->setImage(result);
+            canvas_->setComparisonImage(project_.sourceImage());
+            sizeLabel_->setText(QString("%1 × %2").arg(result.width()).arg(result.height()));
+            statusLabel_->setText("Crop & Rotate applied");
+        }
+    }
+}
+
+void MainWindow::onComparisonGrid() {
+    if (!project_.hasImage()) {
+        QMessageBox::information(this, "No Image", "Please open an image first.");
+        return;
+    }
+
+    ComparisonGrid dialog(project_.sourceImage(), gradingModule_, this);
+    auto presetIds = gradingModule_.availablePresets();
+    dialog.setPresetIds(presetIds);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        std::string chosen = dialog.selectedPresetId();
+        if (!chosen.empty()) {
+            filterPanel_->setSelectedPreset(chosen);
+            updatePreview();
+            statusLabel_->setText("Applied preset from grid: " +
+                                  QString::fromStdString(chosen));
+        }
+    }
+}
+
+void MainWindow::onToggleFavorite() {
+    std::string presetId = filterPanel_->selectedPresetId();
+    if (presetId.empty()) return;
+
+    auto* info = gradingModule_.getPresetInfo(presetId);
+    if (info) {
+        // Toggle favorite status
+        PresetInfo modified = *info;
+        modified.isFavorite = !modified.isFavorite;
+        gradingModule_.registerPreset(modified);
+
+        // Refresh preset list
+        auto ids = gradingModule_.availablePresets();
+        std::unordered_map<std::string, PresetInfo> presetMap;
+        for (const auto& id : ids) {
+            const auto* i = gradingModule_.getPresetInfo(id);
+            if (i) presetMap[id] = *i;
+        }
+        filterPanel_->setAvailablePresets(ids, presetMap);
+        filterPanel_->setSelectedPreset(presetId);
+
+        statusLabel_->setText(modified.isFavorite
+            ? "Added to favorites: " + QString::fromStdString(info->name)
+            : "Removed from favorites: " + QString::fromStdString(info->name));
     }
 }
 

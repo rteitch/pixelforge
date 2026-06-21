@@ -216,11 +216,28 @@ pixelforge/
 
 ---
 
+## CLI Mode
+
+Process images from the command line without opening the GUI:
+
+```bash
+# Apply a cinematic filter
+pixelforge --cli -p cinematic_teal_orange -o output.png input.jpg
+
+# Apply WPAP
+pixelforge --cli -p wpap -o output.svg input.jpg
+
+# List available presets
+pixelforge --cli -p unknown input.jpg  # Shows all available preset IDs
+```
+
+---
+
 ## Roadmap
 
 - [x] **v1.0** — WPAP generator, 15 presets, batch processing, non-destructive editing
-- [ ] **v1.1** — Color picker for WPAP polygons, comparison grid, crop/rotate
-- [ ] **v1.2** — Full CLI mode for automation/scripting
+- [x] **v1.1** — Crop & rotate, comparison grid, preset favorites/bookmark
+- [x] **v1.2** — Full CLI mode for automation/scripting
 - [ ] **v1.3** — Plugin system (dynamic library filters)
 - [ ] **v2.0** — AI Style mode (ONNX Runtime, CPU-friendly)
 

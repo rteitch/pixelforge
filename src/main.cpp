@@ -1,4 +1,7 @@
 #include "gui/MainWindow.h"
+#include "core/Image.h"
+#include "core/WapModule.h"
+#include "core/ColorGradingModule.h"
 
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -75,10 +78,51 @@ int main(int argc, char* argv[]) {
         std::cout << "  Preset: " << presetId << "\n";
         std::cout << "  Output: " << outputPath << "\n";
 
-        // TODO: Implement CLI processing engine
-        // This would use ColorGradingModule directly without GUI
-        std::cout << "CLI mode not yet implemented. Use GUI mode.\n";
-        return 0;
+        // CLI processing using core engine directly (no GUI)
+        try {
+            // Load image
+            Image input = Image::fromFile(inputPath);
+            std::cout << "  Loaded: " << input.width() << "x" << input.height() << "\n";
+
+            // Check if it's a WPAP preset
+            if (presetId == "wap" || presetId == "wpap") {
+                WapModule wap;
+                WapParameters wapParams;
+                Image result = wap.generate(input, wapParams,
+                    [](float p, const std::string& msg) {
+                        std::cout << "  [" << static_cast<int>(p * 100) << "%] " << msg << "\n";
+                    });
+                result.save(outputPath);
+            } else {
+                // Apply filter preset
+                ColorGradingModule grading;
+                FilterParameters params;
+                params.intensity = 100.0f;
+
+                // Check if preset exists
+                if (grading.getPresetInfo(presetId) == nullptr) {
+                    std::cerr << "Error: Unknown preset '" << presetId << "'\n";
+                    std::cerr << "Available presets:\n";
+                    for (const auto& id : grading.availablePresets()) {
+                        const auto* info = grading.getPresetInfo(id);
+                        if (info) {
+                            std::cerr << "  " << id << " - " << info->name << "\n";
+                        }
+                    }
+                    return 1;
+                }
+
+                Image result = grading.applyPreset(input, presetId, params);
+                result.save(outputPath);
+            }
+
+            std::cout << "  Saved: " << outputPath << "\n";
+            std::cout << "Done.\n";
+            return 0;
+        } catch (const std::exception& e) {
+            std::cerr << "Error: " << e.what() << "\n";
+            return 1;
+        }
     }
 
     // GUI mode

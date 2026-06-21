@@ -20,6 +20,8 @@ class ImageCanvas;
 class WapPanel;
 class FilterPanel;
 class BatchDialog;
+class CropRotateDialog;
+class ComparisonGrid;
 
 /// Main application window with single-window workspace layout.
 class MainWindow : public QMainWindow {
@@ -59,6 +61,11 @@ private slots:
     void onApplyFilter(const std::string& presetId);
     void onFilterParamsChanged();
     void onThemeToggle();
+
+    // v1.1 features
+    void onCropRotate();
+    void onComparisonGrid();
+    void onToggleFavorite();
 
 private:
     // Core modules
