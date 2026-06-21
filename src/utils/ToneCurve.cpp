@@ -65,7 +65,9 @@ float ToneCurve::splineInterpolate(
     int i2 = segIdx + 1;
     int i3 = std::min(n - 1, segIdx + 2);
 
-    float t = (input - points[i1].input) / (points[i2].input - points[i1].input);
+    float denom = points[i2].input - points[i1].input;
+    float t = (std::abs(denom) < 1e-10f) ? 0.0f
+              : (input - points[i1].input) / denom;
     float t2 = t * t;
     float t3 = t2 * t;
 

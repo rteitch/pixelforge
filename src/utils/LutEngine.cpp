@@ -101,6 +101,7 @@ bool LutEngine::parseLine(const std::string& line, int& writeIndex) {
 // ============================================================
 
 void LutEngine::createIdentity(int size) {
+    if (size < 2) size = 2;
     size_ = size;
     title_ = "Identity";
     data_.resize(size * size * size);
@@ -239,6 +240,7 @@ LutEngine LutEngine::createParametric(
     float gammaR, float gammaG, float gammaB,
     float saturation)
 {
+    if (lutSize < 2) lutSize = 2;
     LutEngine lut;
     lut.size_ = lutSize;
     lut.title_ = "Parametric";
