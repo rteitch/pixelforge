@@ -233,13 +233,53 @@ pixelforge --cli -p unknown input.jpg  # Shows all available preset IDs
 
 ---
 
+## Plugin System
+
+PixelForge supports third-party filter plugins via dynamic libraries:
+
+```cpp
+// Example plugin: implement IPlugin interface
+#include "core/PluginInterface.h"
+
+class MyPlugin : public IPlugin {
+    const char* id() const override { return "com.example.myplugin"; }
+    const char* name() const override { return "My Filter"; }
+    // ... implement apply(), parameterNames(), etc.
+};
+
+// Export entry points
+PIXELFORGE_PLUGIN_EXPORT IPlugin* createPlugin() { return new MyPlugin(); }
+PIXELFORGE_PLUGIN_EXPORT void destroyPlugin(IPlugin* p) { delete p; }
+```
+
+Load plugins via File → Load Plugin or place `.dll`/`.so`/`.dylib` in the `plugins/` directory.
+
+See `plugins/examples/example_invert_plugin.cpp` for a complete example.
+
+---
+
+## AI Style Transfer (Experimental v2.0)
+
+Neural style transfer using ONNX Runtime (optional dependency):
+
+```bash
+# Enable AI features during build
+cmake -DPIXELFORGE_HAS_ONNX=ON ..
+```
+
+Supports standard fast neural style transfer models (.onnx):
+- Mosaic, Candy, Starry Night, The Scream, Udnie
+- Models are downloaded separately and loaded via File → AI Style → Load Model
+
+---
+
 ## Roadmap
 
 - [x] **v1.0** — WPAP generator, 15 presets, batch processing, non-destructive editing
 - [x] **v1.1** — Crop & rotate, comparison grid, preset favorites/bookmark
 - [x] **v1.2** — Full CLI mode for automation/scripting
-- [ ] **v1.3** — Plugin system (dynamic library filters)
-- [ ] **v2.0** — AI Style mode (ONNX Runtime, CPU-friendly)
+- [x] **v1.3** — Plugin system (dynamic library filters)
+- [x] **v2.0** — AI Style mode (ONNX Runtime scaffold, conditional compile)
 
 ---
 

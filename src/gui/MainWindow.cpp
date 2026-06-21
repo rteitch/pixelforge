@@ -6,6 +6,8 @@
 #include "CropRotateDialog.h"
 #include "ComparisonGrid.h"
 #include "core/IoModule.h"
+#include "core/PluginManager.h"
+#include "core/AiStyleModule.h"
 
 #include <QApplication>
 #include <QMenuBar>
@@ -117,6 +119,12 @@ void MainWindow::setupMenus() {
 
     fileMenu->addSeparator();
 
+    // Plugin management
+    fileMenu->addAction("Load &Plugin...", this, &MainWindow::onLoadPlugin);
+    fileMenu->addAction("Load Plugin &Directory...", this, &MainWindow::onLoadPluginDirectory);
+
+    fileMenu->addSeparator();
+
     fileMenu->addAction("E&xit", this, &QWidget::close, QKeySequence("Ctrl+Q"));
 
     // ---- Edit Menu ----
@@ -156,6 +164,28 @@ void MainWindow::setupMenus() {
 
     viewMenu->addAction("Comparison &Grid...", this, &MainWindow::onComparisonGrid,
                           QKeySequence("Ctrl+G"));
+
+    // ---- AI Menu ----
+    auto* aiMenu = menuBar()->addMenu("&AI Style");
+    aiMenu->addAction("Apply &AI Style Transfer...", this, &MainWindow::onApplyAiStyle,
+                       QKeySequence("Ctrl+I"));
+
+    auto* aiStatusAction = aiMenu->addAction(
+        AiStyleModule::isOnnxRuntimeAvailable()
+            ? "ONNX Runtime: Available ✓"
+            : "ONNX Runtime: Not Available ✗");
+    aiStatusAction->setEnabled(false);
+
+    aiMenu->addSeparator();
+    auto models = AiStyleModule::availableModels();
+    for (const auto& m : models) {
+        aiMenu->addAction(QString::fromStdString(m.name + " — " + m.description));
+    }
+
+    // ---- Plugin Menu ----
+    auto* pluginMenu = menuBar()->addMenu("&Plugins");
+    pluginMenu->addAction("Load Plugin...", this, &MainWindow::onLoadPlugin);
+    pluginMenu->addAction("Load Plugin Directory...", this, &MainWindow::onLoadPluginDirectory);
 
     // ---- Help Menu ----
     auto* helpMenu = menuBar()->addMenu("&Help");
@@ -660,6 +690,145 @@ void MainWindow::onToggleFavorite() {
             ? "Added to favorites: " + QString::fromStdString(info->name)
             : "Removed from favorites: " + QString::fromStdString(info->name));
     }
+}
+
+// ============================================================
+// v1.3 — Plugin System
+// ============================================================
+
+void MainWindow::onLoadPlugin() {
+    QString filePath = QFileDialog::getOpenFileName(
+        this, "Load Plugin", "",
+#ifdef _WIN32
+        "Plugin Libraries (*.dll);;All Files (*)"
+#elif __APPLE__
+        "Plugin Libraries (*.dylib);;All Files (*)"
+#else
+        "Plugin Libraries (*.so);;All Files (*)"
+#endif
+    );
+
+    if (filePath.isEmpty()) return;
+
+    if (pluginManager_.loadPlugin(filePath.toStdString())) {
+        auto info = pluginManager_.allPluginInfo();
+        if (!info.empty()) {
+            const auto& last = info.back();
+            statusLabel_->setText(
+                QString("Plugin loaded: %1 v%2")
+                    .arg(QString::fromStdString(last.name))
+                    .arg(QString::fromStdString(last.version)));
+        }
+    } else {
+        QMessageBox::warning(this, "Plugin Error",
+                             "Failed to load plugin. Check that the file is a valid "
+                             "PixelForge plugin library.");
+    }
+}
+
+void MainWindow::onLoadPluginDirectory() {
+    QString dirPath = QFileDialog::getExistingDirectory(
+        this, "Select Plugin Directory");
+
+    if (dirPath.isEmpty()) return;
+
+    int count = pluginManager_.loadPluginsFromDirectory(dirPath.toStdString());
+    statusLabel_->setText(
+        QString("Loaded %1 plugin(s) from: %2").arg(count).arg(dirPath));
+
+    if (count == 0) {
+        QMessageBox::information(this, "No Plugins Found",
+                                 "No valid plugin libraries found in the selected directory.");
+    }
+}
+
+// ============================================================
+// v2.0 — AI Style Transfer
+// ============================================================
+
+void MainWindow::onApplyAiStyle() {
+    if (!project_.hasImage()) {
+        QMessageBox::information(this, "No Image", "Please open an image first.");
+        return;
+    }
+
+    if (!AiStyleModule::isOnnxRuntimeAvailable()) {
+        QMessageBox::information(this, "AI Style Transfer",
+            "<h3>ONNX Runtime Not Available</h3>"
+            "<p>AI Style Transfer requires the ONNX Runtime library.</p>"
+            "<p>To enable this feature:</p>"
+            "<ol>"
+            "<li>Install ONNX Runtime: <code>vcpkg install onnxruntime</code></li>"
+            "<li>Rebuild with: <code>cmake -DPIXELFORGE_HAS_ONNX=ON ..</code></li>"
+            "<li>Download style transfer models (.onnx files) to the <code>models/</code> directory</li>"
+            "</ol>"
+            "<p>Recommended models: Mosaic, Candy, Starry Night, The Scream, Udnie</p>");
+        return;
+    }
+
+    // Check if any models are loaded
+    auto modelIds = aiStyleModule_.loadedModelIds();
+    if (modelIds.empty()) {
+        // Try to find models in the models/ directory
+        QString modelPath = QFileDialog::getOpenFileName(
+            this, "Load ONNX Style Model", "models/",
+            "ONNX Models (*.onnx);;All Files (*)");
+
+        if (modelPath.isEmpty()) return;
+
+        // Load the model
+        std::string modelId = std::filesystem::path(modelPath.toStdString())
+                                  .stem().string();
+        if (!aiStyleModule_.loadModel(modelPath.toStdString(), modelId)) {
+            QMessageBox::warning(this, "Model Error",
+                                 "Failed to load the ONNX model. "
+                                 "Ensure ONNX Runtime is properly installed.");
+            return;
+        }
+        modelIds = aiStyleModule_.loadedModelIds();
+    }
+
+    // Choose model if multiple
+    std::string chosenModel = modelIds[0];
+    if (modelIds.size() > 1) {
+        QStringList items;
+        for (const auto& id : modelIds) {
+            items << QString::fromStdString(id);
+        }
+        bool ok;
+        QString selected = QInputDialog::getItem(
+            this, "Select AI Model", "Style model:", items, 0, false, &ok);
+        if (!ok) return;
+        chosenModel = selected.toStdString();
+    }
+
+    // Get strength
+    bool ok;
+    double strength = QInputDialog::getDouble(
+        this, "AI Style Strength",
+        "Blend strength (0.0 = original, 1.0 = full style):",
+        1.0, 0.0, 1.0, 2, &ok);
+    if (!ok) return;
+
+    statusLabel_->setText("Applying AI style transfer...");
+    QApplication::processEvents();
+
+    Image result = aiStyleModule_.applyStyle(
+        project_.sourceImage(), chosenModel, static_cast<float>(strength),
+        [this](float progress, const std::string& msg) {
+            statusLabel_->setText(
+                QString::fromStdString(msg) + " (" +
+                QString::number(static_cast<int>(progress * 100)) + "%)");
+            QApplication::processEvents();
+        });
+
+    project_.setCurrentImage(result, "AI Style: " + chosenModel);
+    canvas_->setImage(result);
+    canvas_->setComparisonImage(project_.sourceImage());
+    canvas_->setComparisonEnabled(true);
+
+    statusLabel_->setText("AI style transfer complete: " +
+                          QString::fromStdString(chosenModel));
 }
 
 } // namespace PixelForge

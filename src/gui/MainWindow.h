@@ -3,6 +3,8 @@
 #include "core/CoreTypes.h"
 #include "core/WapModule.h"
 #include "core/ColorGradingModule.h"
+#include "core/PluginManager.h"
+#include "core/AiStyleModule.h"
 #include "app/ProjectManager.h"
 
 #include <QMainWindow>
@@ -67,11 +69,18 @@ private slots:
     void onComparisonGrid();
     void onToggleFavorite();
 
+    // v1.3 + v2.0 features
+    void onLoadPlugin();
+    void onLoadPluginDirectory();
+    void onApplyAiStyle();
+
 private:
     // Core modules
     ProjectManager project_;
     WapModule wapModule_;
     ColorGradingModule gradingModule_;
+    PluginManager pluginManager_;
+    AiStyleModule aiStyleModule_;
 
     // GUI components
     ImageCanvas* canvas_ = nullptr;
