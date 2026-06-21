@@ -304,7 +304,8 @@ bool Image::save(const std::string& path, int jpegQuality) const {
     }
 
     std::vector<int> params;
-    std::string ext = path.substr(path.rfind('.'));
+    auto dotPos = path.rfind('.');
+    std::string ext = (dotPos != std::string::npos) ? path.substr(dotPos) : "";
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
     if (ext == ".jpg" || ext == ".jpeg") {
