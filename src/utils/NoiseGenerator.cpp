@@ -119,6 +119,8 @@ float NoiseGenerator::noise2D(float x, float y) const {
 // ============================================================
 
 float NoiseGenerator::fbm(float x, float y, int octaves, float lacunarity, float gain) const {
+    if (octaves <= 0) return 0.0f;
+
     float value = 0.0f;
     float amplitude = 1.0f;
     float frequency = 1.0f;
@@ -131,7 +133,7 @@ float NoiseGenerator::fbm(float x, float y, int octaves, float lacunarity, float
         frequency *= lacunarity;
     }
 
-    return value / maxValue; // Normalize to [-1, 1]
+    return (maxValue > 0.0f) ? (value / maxValue) : 0.0f; // Normalize to [-1, 1]
 }
 
 // ============================================================
@@ -161,6 +163,7 @@ void NoiseGenerator::applyFilmGrain(uint8_t* pixels, int width, int height,
     if (intensity <= 0.0f) return;
 
     intensity = std::clamp(intensity, 0.0f, 100.0f) / 100.0f;
+    grainSize = std::clamp(grainSize, 0.0f, 100.0f);
 
     // Map grainSize (0-100) to noise scale (fine to coarse)
     float scale = 0.1f + (1.0f - grainSize / 100.0f) * 0.3f;
@@ -197,17 +200,18 @@ void NoiseGenerator::applyFilmGrain(uint8_t* pixels, int width, int height,
 
 void NoiseGenerator::applyHalation(uint8_t* pixels, int width, int height,
                                     float strength, uint8_t threshold) {
-    if (strength <= 0.0f) return;
+    if (strength <= 0.0f || width <= 0 || height <= 0) return;
 
     strength = std::clamp(strength, 0.0f, 100.0f) / 100.0f;
+    float thresholdRange = 255.0f - static_cast<float>(threshold);
 
     // Step 1: Create highlight mask
     std::vector<float> mask(width * height, 0.0f);
     for (int i = 0; i < width * height; ++i) {
         int idx = i * 3;
         float lum = 0.299f * pixels[idx] + 0.587f * pixels[idx + 1] + 0.114f * pixels[idx + 2];
-        if (lum > threshold) {
-            mask[i] = (lum - threshold) / (255.0f - threshold);
+        if (lum > threshold && thresholdRange > 0.0f) {
+            mask[i] = (lum - threshold) / thresholdRange;
         }
     }
 

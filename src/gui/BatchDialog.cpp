@@ -12,6 +12,7 @@
 #include <QHeaderView>
 #include <QThread>
 #include <QFuture>
+#include <QFutureWatcher>
 #include <QtConcurrent>
 
 namespace PixelForge {
@@ -257,7 +258,38 @@ void BatchDialog::onStart() {
     config.namingPattern = namingPatternEdit_->text().toStdString();
     config.presetId = presetCombo_->currentData().toString().toStdString();
 
-    // Run in background thread
+    // Run in background thread with watcher for completion
+    auto* watcher = new QFutureWatcher<std::vector<BatchJobResult>>(this);
+    connect(watcher, &QFutureWatcher<std::vector<BatchJobResult>>::finished, this,
+        [this, watcher]() {
+            auto results = watcher->result();
+
+            // Update final status
+            setRunning(false);
+            overallProgress_->setValue(overallProgress_->maximum());
+
+            int completed = 0, failed = 0;
+            for (const auto& r : results) {
+                if (r.status == BatchJobStatus::Completed) completed++;
+                else failed++;
+            }
+
+            currentFileLabel_->setText("Batch processing complete!");
+            statusLabel_->setText(QString("Processed: %1 OK, %2 failed")
+                                    .arg(completed).arg(failed));
+
+            // Update status in file list
+            for (int i = 0; i < static_cast<int>(results.size()); ++i) {
+                if (i < fileList_->rowCount()) {
+                    QString status = (results[i].status == BatchJobStatus::Completed)
+                        ? "Done" : "Failed";
+                    fileList_->setItem(i, 1, new QTableWidgetItem(status));
+                }
+            }
+
+            watcher->deleteLater();
+        });
+
     QFuture<std::vector<BatchJobResult>> future = QtConcurrent::run(
         [this, config]() {
             return processor_->process(config,
@@ -281,20 +313,7 @@ void BatchDialog::onStart() {
                 });
         });
 
-    // Poll for completion (simplified - real impl would use signals)
-    // For now, we rely on QtConcurrent finishing and updating UI
-    Q_UNUSED(future);
-
-    // Reset state
-    setRunning(false);
-    overallProgress_->setValue(overallProgress_->maximum());
-    currentFileLabel_->setText("Batch processing complete!");
-    statusLabel_->setText(QString("Processed %1 files").arg(files_.size()));
-
-    // Update status in file list
-    for (int i = 0; i < fileList_->rowCount(); ++i) {
-        fileList_->setItem(i, 1, new QTableWidgetItem("Done"));
-    }
+    watcher->setFuture(future);
 }
 
 void BatchDialog::onCancel() {
