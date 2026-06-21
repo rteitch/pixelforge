@@ -2,6 +2,7 @@
 #include "app/BatchProcessor.h"
 #include "core/IoModule.h"
 
+#include <filesystem>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
