@@ -9,6 +9,7 @@
 #include "core/PluginManager.h"
 #include "core/AiStyleModule.h"
 
+#include <filesystem>
 #include <QApplication>
 #include <QMenuBar>
 #include <QToolBar>
@@ -534,7 +535,7 @@ void MainWindow::onGenerateWap() {
     statusLabel_->setText("WPAP generated successfully");
 }
 
-void MainWindow::onApplyFilter(const std::string& presetId) {
+void MainWindow::onApplyFilter(const std::string& /*presetId*/) {
     if (!project_.hasImage()) return;
 
     currentMode_ = EditMode::Filter;

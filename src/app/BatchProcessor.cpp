@@ -155,11 +155,7 @@ BatchJobResult BatchProcessor::processSingle(
             output = gradingModule_.applyPreset(input, config.presetId, config.filterParams, progress);
         }
 
-        // Generate output path
-        result.outputPath = generateOutputPath(inputPath, config,
-                                                static_cast<int>(&result - &*(&result)[0]));
-
-        // Fix index in output path name
+        // Generate output path using naming pattern
         std::string namePattern = config.namingPattern;
         fs::path inputP(inputPath);
         std::string baseName = inputP.stem().string();

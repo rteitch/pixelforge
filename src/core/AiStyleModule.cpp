@@ -314,7 +314,7 @@ Image AiStyleModule::applyStyle(
     return styled;
 #else
     // ONNX Runtime not available — return original with a message
-    Q_UNUSED(progress);
+    (void)progress; // suppress unused warning
     std::cerr << "[AiStyle] ONNX Runtime not available. Cannot apply AI style.\n"
               << "Build with -DPIXELFORGE_HAS_ONNX=ON to enable this feature.\n";
     return input.deepCopy();
