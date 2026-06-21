@@ -174,7 +174,7 @@ bool ProjectManager::saveProject(const std::string& filePath) {
         file << "        \"highlights\": " << l.params.highlights << ",\n";
         file << "        \"shadows\": " << l.params.shadows << "\n";
         file << "      }\n";
-        file << "    }" << (i < impl_->layers.size() - 1 ? "," : "") << "\n";
+        file << "    }" << (i + 1 < impl_->layers.size() ? "," : "") << "\n";
     }
     file << "  ]\n";
     file << "}\n";
