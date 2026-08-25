@@ -23,6 +23,7 @@ target_include_directories(PixelForgeTests PRIVATE
 target_link_libraries(PixelForgeTests PRIVATE
     GTest::GTest
     GTest::Main
+    Qt6::Core
     ${OpenCV_LIBS}
     Threads::Threads
 )

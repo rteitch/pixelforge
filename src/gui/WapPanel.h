@@ -10,6 +10,8 @@
 #include <QLabel>
 #include <QSpinBox>
 
+#include <vector>
+
 namespace PixelForge {
 
 /// Left panel for WPAP parameter controls.
@@ -39,6 +41,8 @@ private:
     QLabel* faceBoostLabel_ = nullptr;
     QPushButton* generateBtn_ = nullptr;
     QPushButton* exportSvgBtn_ = nullptr;
+    QPushButton* editPaletteBtn_ = nullptr;
+    std::vector<Color3u8> customPalette_;
 
     void setupUi();
     void connectSignals();

@@ -113,7 +113,24 @@ DelaunayTriangulation::compute(const std::vector<Point2f>& points) {
     std::vector<TriangleIndex> result;
     for (const auto& tri : triangulation) {
         if (tri.v[0] >= n || tri.v[1] >= n || tri.v[2] >= n) continue;
-        result.push_back(tri);
+        TriangleIndex normalized = tri;
+        float orientation = (points[normalized.v[1]].x - points[normalized.v[0]].x) *
+                            (points[normalized.v[2]].y - points[normalized.v[0]].y) -
+                            (points[normalized.v[1]].y - points[normalized.v[0]].y) *
+                            (points[normalized.v[2]].x - points[normalized.v[0]].x);
+        if (orientation < 0.0f) std::swap(normalized.v[0], normalized.v[1]);
+
+        int first = 0;
+        if (normalized.v[1] < normalized.v[first]) first = 1;
+        if (normalized.v[2] < normalized.v[first]) first = 2;
+        if (first == 1) {
+            std::swap(normalized.v[0], normalized.v[1]);
+            std::swap(normalized.v[1], normalized.v[2]);
+        } else if (first == 2) {
+            std::swap(normalized.v[0], normalized.v[2]);
+            std::swap(normalized.v[1], normalized.v[2]);
+        }
+        result.push_back(normalized);
     }
 
     return result;
@@ -184,8 +201,10 @@ bool DelaunayTriangulation::inCircumcircle(
               - (bx_ * bx_ + by_ * by_) * (ax_ * cy_ - cx_ * ay_)
               + (cx_ * cx_ + cy_ * cy_) * (ax_ * by_ - bx_ * ay_);
 
-    // For counter-clockwise oriented triangle, det > 0 means inside circumcircle
-    return det > 0.0f;
+    // The Bowyer-Watson super-triangle may be clockwise or counter-clockwise.
+    float orientation = (b.x - a.x) * (c.y - a.y)
+                      - (b.y - a.y) * (c.x - a.x);
+    return orientation > 0.0f ? det > 0.0f : det < 0.0f;
 }
 
 } // namespace PixelForge

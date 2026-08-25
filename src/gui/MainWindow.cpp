@@ -30,6 +30,13 @@
 #include <QProgressDialog>
 #include <QTimer>
 #include <QInputDialog>
+#include <QProcess>
+#include <QCheckBox>
+#include <QHBoxLayout>
+#include <QSignalBlocker>
+#include <QVBoxLayout>
+
+#include <opencv2/core.hpp>
 
 namespace PixelForge {
 
@@ -43,6 +50,8 @@ MainWindow::MainWindow(QWidget* parent)
     setupConnections();
     setupDarkTheme();
     updateTitle();
+
+    wapPreviewTimer_.setSingleShot(true);
 
     setAcceptDrops(true);
     resize(1400, 900);
@@ -85,6 +94,33 @@ void MainWindow::setupUi() {
     leftDock->setWidget(leftPanel_);
     leftDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
     addDockWidget(Qt::LeftDockWidgetArea, leftDock);
+
+    auto* layerWidget = new QWidget;
+    auto* layerLayout = new QVBoxLayout(layerWidget);
+    layerList_ = new QListWidget;
+    layerList_->setSelectionMode(QAbstractItemView::SingleSelection);
+    layerLayout->addWidget(layerList_);
+
+    layerOpacitySlider_ = new QSlider(Qt::Horizontal);
+    layerOpacitySlider_->setRange(0, 100);
+    layerOpacitySlider_->setValue(100);
+    layerOpacitySlider_->setToolTip("Selected layer opacity");
+    layerLayout->addWidget(layerOpacitySlider_);
+
+    auto* layerButtons = new QHBoxLayout;
+    moveLayerUpBtn_ = new QPushButton("Up");
+    moveLayerDownBtn_ = new QPushButton("Down");
+    removeLayerBtn_ = new QPushButton("Remove");
+    layerButtons->addWidget(moveLayerUpBtn_);
+    layerButtons->addWidget(moveLayerDownBtn_);
+    layerButtons->addWidget(removeLayerBtn_);
+    layerLayout->addLayout(layerButtons);
+
+    rightDock_ = new QDockWidget("Layers", this);
+    rightDock_->setWidget(layerWidget);
+    rightDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                            QDockWidget::DockWidgetFloatable);
+    addDockWidget(Qt::RightDockWidgetArea, rightDock_);
 }
 
 void MainWindow::setupMenus() {
@@ -94,6 +130,11 @@ void MainWindow::setupMenus() {
     auto* openAction = fileMenu->addAction("&Open Image...", this, &MainWindow::onOpenFile,
                                             QKeySequence("Ctrl+O"));
     openAction->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
+
+    auto* closeImageAction = fileMenu->addAction("&Close Image", this,
+                                                  &MainWindow::onCloseImage,
+                                                  QKeySequence("Ctrl+W"));
+    closeImageAction->setIcon(style()->standardIcon(QStyle::SP_DialogCloseButton));
 
     fileMenu->addSeparator();
 
@@ -180,7 +221,15 @@ void MainWindow::setupMenus() {
     aiMenu->addSeparator();
     auto models = AiStyleModule::availableModels();
     for (const auto& m : models) {
-        aiMenu->addAction(QString::fromStdString(m.name + " — " + m.description));
+        auto* modelAction = aiMenu->addAction(
+            QString::fromStdString(m.name + " — " + m.description));
+        modelAction->setEnabled(AiStyleModule::isOnnxRuntimeAvailable());
+        if (!modelAction->isEnabled()) {
+            modelAction->setToolTip("Install ONNX Runtime to enable AI styles");
+        } else {
+            connect(modelAction, &QAction::triggered,
+                    this, &MainWindow::onApplyAiStyle);
+        }
     }
 
     // ---- Plugin Menu ----
@@ -190,6 +239,9 @@ void MainWindow::setupMenus() {
 
     // ---- Help Menu ----
     auto* helpMenu = menuBar()->addMenu("&Help");
+    helpMenu->addAction("Hardware &Diagnostics...", this,
+                        &MainWindow::onHardwareDiagnostics);
+    helpMenu->addSeparator();
     helpMenu->addAction("&About PixelForge", this, [this]() {
         QMessageBox::about(this, "About PixelForge",
             "<h2>PixelForge v1.0</h2>"
@@ -200,6 +252,33 @@ void MainWindow::setupMenus() {
     });
 }
 
+void MainWindow::onHardwareDiagnostics() {
+    QString details;
+    QProcess nvidia;
+    nvidia.start("nvidia-smi", {"--query-gpu=name,memory.total,driver_version",
+                                 "--format=csv,noheader"});
+    if (nvidia.waitForFinished(1500) && nvidia.exitCode() == 0) {
+        details += "NVIDIA GPU:\n" + QString::fromLocal8Bit(nvidia.readAllStandardOutput());
+    } else {
+        QProcess windowsGpu;
+        windowsGpu.start("powershell", {"-NoProfile", "-Command",
+            "Get-CimInstance Win32_VideoController | "
+            "Select-Object Name,AdapterRAM | Format-Table -HideTableHeaders"});
+        if (windowsGpu.waitForFinished(2000) && windowsGpu.exitCode() == 0) {
+            details += "Windows display adapters:\n" +
+                       QString::fromLocal8Bit(windowsGpu.readAllStandardOutput());
+        } else {
+            details += "No display adapter information was returned.\n";
+        }
+    }
+
+    details += "\nProcessing backend:\n";
+    details += "CPU/OpenMP: enabled when available at build time.\n";
+    details += "CUDA/OpenCL image acceleration: not enabled in this build.\n";
+    details += "The detected GPU is currently informational; batch processing uses CPU threads.\n";
+    QMessageBox::information(this, "Hardware Diagnostics", details);
+}
+
 void MainWindow::setupToolbar() {
     auto* toolbar = addToolBar("Main Toolbar");
     toolbar->setMovable(false);
@@ -208,12 +287,15 @@ void MainWindow::setupToolbar() {
     toolbar->addAction(style()->standardIcon(QStyle::SP_DialogOpenButton),
                         "Open", this, &MainWindow::onOpenFile);
 
+    toolbar->addAction(style()->standardIcon(QStyle::SP_DialogCloseButton),
+                        "Close Image", this, &MainWindow::onCloseImage);
+
     toolbar->addSeparator();
 
-    toolbar->addAction(style()->standardIcon(QStyle::SP_ArrowUndo),
+    toolbar->addAction(style()->standardIcon(QStyle::SP_ArrowBack),
                         "Undo", this, &MainWindow::onUndo);
 
-    toolbar->addAction(style()->standardIcon(QStyle::SP_ArrowRedo),
+    toolbar->addAction(style()->standardIcon(QStyle::SP_ArrowForward),
                         "Redo", this, &MainWindow::onRedo);
 
     toolbar->addSeparator();
@@ -286,6 +368,78 @@ void MainWindow::setupConnections() {
     // WPAP panel connections
     connect(wapPanel_, &WapPanel::generateRequested, this, &MainWindow::onGenerateWap);
     connect(wapPanel_, &WapPanel::exportRequested, this, &MainWindow::onExportSVG);
+    connect(wapPanel_, &WapPanel::parametersChanged, this, [this]() {
+        if (project_.hasImage()) wapPreviewTimer_.start(250);
+    });
+        connect(&wapPreviewTimer_, &QTimer::timeout,
+            this, &MainWindow::onGenerateWapPreview);
+
+    connect(layerList_, &QListWidget::currentRowChanged, this, [this](int row) {
+        bool hasSelection = row >= 0 && row < layerList_->count();
+        removeLayerBtn_->setEnabled(hasSelection);
+        moveLayerUpBtn_->setEnabled(hasSelection && row > 0);
+        moveLayerDownBtn_->setEnabled(hasSelection && row + 1 < layerList_->count());
+        if (row >= 0 && row < static_cast<int>(project_.layers().size())) {
+            auto& layer = project_.layers()[row];
+            activeFilterLayerId_ = layer.isWapMode ? "" : layer.id;
+            activeWapLayerId_ = layer.isWapMode ? layer.id : "";
+            if (layer.isWapMode) {
+                currentMode_ = EditMode::Wap;
+                leftPanel_->setCurrentWidget(wapPanel_);
+                wapPanel_->setParams(layer.wapParams);
+            } else {
+                currentMode_ = EditMode::Filter;
+                leftPanel_->setCurrentWidget(filterPanel_);
+                filterPanel_->setSelectedPreset(layer.presetId);
+                filterPanel_->setParams(layer.params);
+            }
+            layerOpacitySlider_->setValue(static_cast<int>(
+                layer.opacity));
+        }
+    });
+    connect(layerList_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
+        int row = layerList_->row(item);
+        if (row >= 0 && row < static_cast<int>(project_.layers().size())) {
+            project_.layers()[row].enabled = item->checkState() == Qt::Checked;
+            project_.layers()[row].name = item->text().toStdString();
+            rebuildPreviewFromLayers();
+        }
+    });
+    connect(layerOpacitySlider_, &QSlider::valueChanged, this, [this](int value) {
+        int row = layerList_->currentRow();
+        if (row >= 0 && row < static_cast<int>(project_.layers().size())) {
+            project_.layers()[row].opacity = static_cast<float>(value);
+            rebuildPreviewFromLayers();
+        }
+    });
+    connect(removeLayerBtn_, &QPushButton::clicked, this, [this]() {
+        int row = layerList_->currentRow();
+        if (row < 0 || row >= static_cast<int>(project_.layers().size())) return;
+        std::string id = project_.layers()[row].id;
+        project_.removeLayer(id);
+        activeFilterLayerId_.clear();
+        activeWapLayerId_.clear();
+        refreshLayerPanel();
+        rebuildPreviewFromLayers();
+    });
+    connect(moveLayerUpBtn_, &QPushButton::clicked, this, [this]() {
+        int row = layerList_->currentRow();
+        if (row <= 0 || row >= static_cast<int>(project_.layers().size())) return;
+        std::string id = project_.layers()[row].id;
+        project_.reorderLayer(id, row - 1);
+        refreshLayerPanel();
+        layerList_->setCurrentRow(row - 1);
+        rebuildPreviewFromLayers();
+    });
+    connect(moveLayerDownBtn_, &QPushButton::clicked, this, [this]() {
+        int row = layerList_->currentRow();
+        if (row < 0 || row + 1 >= static_cast<int>(project_.layers().size())) return;
+        std::string id = project_.layers()[row].id;
+        project_.reorderLayer(id, row + 1);
+        refreshLayerPanel();
+        layerList_->setCurrentRow(row + 1);
+        rebuildPreviewFromLayers();
+    });
 }
 
 void MainWindow::setupDarkTheme() {
@@ -330,9 +484,32 @@ void MainWindow::onOpenFile() {
     }
 }
 
+void MainWindow::onCloseImage() {
+    if (!project_.hasImage()) {
+        statusLabel_->setText("No image is open");
+        return;
+    }
+
+    if (!confirmImageReplacement()) return;
+
+    project_.closeImage();
+    activeFilterLayerId_.clear();
+    activeWapLayerId_.clear();
+    canvas_->setComparisonEnabled(false);
+    canvas_->setComparisonImage(Image());
+    canvas_->setImage(Image());
+    sizeLabel_->clear();
+    statusLabel_->setText("Image closed");
+    updateTitle();
+}
+
 void MainWindow::loadImageFromFile(const std::string& path) {
     try {
+        if (project_.hasImage() && !confirmImageReplacement()) return;
+
         if (project_.openImage(path)) {
+            activeFilterLayerId_.clear();
+            activeWapLayerId_.clear();
             canvas_->setImage(project_.currentImage());
             canvas_->setComparisonImage(project_.sourceImage());
             canvas_->setComparisonEnabled(false);
@@ -350,6 +527,22 @@ void MainWindow::loadImageFromFile(const std::string& path) {
         QMessageBox::warning(this, "Error",
                              QString("Failed to load image:\n%1").arg(e.what()));
     }
+}
+
+bool MainWindow::confirmImageReplacement() {
+    if (!project_.hasUnsavedChanges()) return true;
+
+    auto reply = QMessageBox::question(
+        this, "Unsaved Changes",
+        "The current image has unsaved changes. Save before replacing it?",
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+
+    if (reply == QMessageBox::Cancel) return false;
+    if (reply == QMessageBox::Save) {
+        onSaveProject();
+        return !project_.hasUnsavedChanges();
+    }
+    return true;
 }
 
 void MainWindow::onSaveProject() {
@@ -375,15 +568,85 @@ void MainWindow::onOpenProject() {
         "PixelForge Project (*.pforge);;All Files (*)");
 
     if (!filePath.isEmpty()) {
+        if (project_.hasImage() && !confirmImageReplacement()) return;
+
         if (project_.loadProject(filePath.toStdString())) {
-            canvas_->setImage(project_.currentImage());
-            canvas_->setComparisonImage(project_.sourceImage());
+            activeFilterLayerId_.clear();
+            activeWapLayerId_.clear();
+            restoreProjectPreview();
             updateTitle();
             statusLabel_->setText("Project loaded");
         } else {
             QMessageBox::warning(this, "Error", "Failed to load project.");
         }
     }
+}
+
+void MainWindow::restoreProjectPreview() {
+    rebuildPreviewFromLayers();
+    project_.markSaved();
+    refreshLayerPanel();
+}
+
+void MainWindow::refreshLayerPanel() {
+    if (!layerList_) return;
+
+    int selectedRow = layerList_->currentRow();
+    QSignalBlocker blocker(layerList_);
+    layerList_->clear();
+    for (const auto& layer : project_.layers()) {
+        QString label = QString::fromStdString(
+            layer.name.empty() ? (layer.isWapMode ? "WPAP" : layer.presetId)
+                               : layer.name);
+        auto* item = new QListWidgetItem(label, layerList_);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsEditable);
+        item->setCheckState(layer.enabled ? Qt::Checked : Qt::Unchecked);
+    }
+    if (selectedRow >= 0 && selectedRow < layerList_->count()) {
+        layerList_->setCurrentRow(selectedRow);
+    }
+    bool hasSelection = layerList_->currentRow() >= 0;
+    removeLayerBtn_->setEnabled(hasSelection);
+    moveLayerUpBtn_->setEnabled(hasSelection && layerList_->currentRow() > 0);
+    moveLayerDownBtn_->setEnabled(
+        hasSelection && layerList_->currentRow() + 1 < layerList_->count());
+}
+
+void MainWindow::rebuildPreviewFromLayers() {
+    if (!project_.hasImage()) {
+        refreshLayerPanel();
+        return;
+    }
+
+    Image result = project_.sourceImage().deepCopy();
+    for (const auto& layer : project_.layers()) {
+        if (!layer.enabled) continue;
+
+        Image effect = result;
+        if (layer.isWapMode) {
+            effect = wapModule_.generate(result, layer.wapParams);
+        } else if (!layer.presetId.empty()) {
+            effect = gradingModule_.applyPreset(result, layer.presetId, layer.params);
+        } else {
+            continue;
+        }
+
+        float opacity = std::clamp(layer.opacity, 0.0f, 100.0f) / 100.0f;
+        if (opacity < 1.0f) {
+            cv::addWeighted(result.mat(), 1.0 - opacity,
+                            effect.mat(), opacity, 0.0, result.mat());
+        } else {
+            result = std::move(effect);
+        }
+    }
+
+    project_.restoreCurrentImage(result);
+    canvas_->setImage(result);
+    canvas_->setComparisonImage(project_.sourceImage());
+    canvas_->setComparisonEnabled(false);
+    sizeLabel_->setText(QString("%1 × %2").arg(result.width()).arg(result.height()));
+    updateTitle();
+    refreshLayerPanel();
 }
 
 void MainWindow::onExportImage() {
@@ -451,9 +714,12 @@ void MainWindow::onUndo() {
     if (project_.history().canUndo()) {
         Image img = project_.history().undo();
         if (!img.isEmpty()) {
+            project_.restoreCurrentImage(img);
             canvas_->setImage(img);
+            canvas_->setComparisonImage(project_.sourceImage());
             statusLabel_->setText("Undo: " +
                 QString::fromStdString(project_.history().currentDescription()));
+            updateTitle();
         }
     }
 }
@@ -462,9 +728,12 @@ void MainWindow::onRedo() {
     if (project_.history().canRedo()) {
         Image img = project_.history().redo();
         if (!img.isEmpty()) {
+            project_.restoreCurrentImage(img);
             canvas_->setImage(img);
+            canvas_->setComparisonImage(project_.sourceImage());
             statusLabel_->setText("Redo: " +
                 QString::fromStdString(project_.history().currentDescription()));
+            updateTitle();
         }
     }
 }
@@ -519,6 +788,7 @@ void MainWindow::onGenerateWap() {
     QApplication::processEvents();
 
     WapParameters params = wapPanel_->currentParams();
+    activeFilterLayerId_.clear();
 
     Image result = wapModule_.generate(project_.sourceImage(), params,
         [this](float progress, const std::string& msg) {
@@ -527,7 +797,39 @@ void MainWindow::onGenerateWap() {
             QApplication::processEvents();
         });
 
-    project_.setCurrentImage(result, "WPAP Generation");
+    applyWapResult(result, params, true);
+}
+
+void MainWindow::onGenerateWapPreview() {
+    if (!project_.hasImage()) return;
+
+    WapParameters params = wapPanel_->currentParams();
+    Image result = wapModule_.generate(project_.sourceImage(), params);
+    applyWapResult(result, params, false);
+}
+
+void MainWindow::applyWapResult(const Image& result,
+                                const WapParameters& currentParams,
+                                bool addHistory) {
+    if (addHistory) {
+        project_.setCurrentImage(result, "WPAP Generation");
+    } else {
+        project_.restoreCurrentImage(result);
+    }
+    if (activeWapLayerId_.empty()) {
+        AdjustmentLayer layer;
+        layer.name = "WPAP";
+        layer.isWapMode = true;
+        layer.wapParams = currentParams;
+        project_.addLayer(layer);
+        activeWapLayerId_ = project_.layers().back().id;
+    } else {
+        if (auto* layer = project_.findLayer(activeWapLayerId_)) {
+            layer->wapParams = currentParams;
+        }
+    }
+    refreshLayerPanel();
+    layerList_->setCurrentRow(layerList_->count() - 1);
     canvas_->setImage(result);
     canvas_->setComparisonImage(project_.sourceImage());
     canvas_->setComparisonEnabled(true);
@@ -539,12 +841,28 @@ void MainWindow::onApplyFilter(const std::string& /*presetId*/) {
     if (!project_.hasImage()) return;
 
     currentMode_ = EditMode::Filter;
+    activeWapLayerId_.clear();
     updatePreview();
+
+    AdjustmentLayer layer;
+    layer.name = filterPanel_->selectedPresetId();
+    layer.presetId = filterPanel_->selectedPresetId();
+    layer.params = filterPanel_->currentParams();
+    project_.addLayer(layer);
+    activeFilterLayerId_ = project_.layers().back().id;
+    refreshLayerPanel();
+    layerList_->setCurrentRow(layerList_->count() - 1);
+    rebuildPreviewFromLayers();
+    updateTitle();
 }
 
 void MainWindow::onFilterParamsChanged() {
     if (!project_.hasImage() || currentMode_ != EditMode::Filter) return;
-    updatePreview();
+    if (!activeFilterLayerId_.empty()) {
+        project_.updateLayerParams(activeFilterLayerId_, filterPanel_->currentParams());
+    }
+    rebuildPreviewFromLayers();
+    updateTitle();
 }
 
 void MainWindow::updatePreview() {
@@ -611,9 +929,9 @@ void MainWindow::dropEvent(QDropEvent* event) {
         std::string path = url.toLocalFile().toStdString();
         if (path.find(".pforge") != std::string::npos) {
             if (project_.loadProject(path)) {
-                canvas_->setImage(project_.currentImage());
-                canvas_->setComparisonImage(project_.sourceImage());
+                restoreProjectPreview();
                 updateTitle();
+                statusLabel_->setText("Project loaded");
             }
         } else if (IoModule::isSupportedFormat(path)) {
             loadImageFromFile(path);

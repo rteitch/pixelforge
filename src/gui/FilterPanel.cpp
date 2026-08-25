@@ -5,6 +5,7 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QScrollArea>
+#include <QSignalBlocker>
 
 namespace PixelForge {
 
@@ -196,6 +197,13 @@ FilterParameters FilterPanel::currentParams() const {
 }
 
 void FilterPanel::setParams(const FilterParameters& p) {
+    QSignalBlocker blockers[] = {
+        QSignalBlocker(intensitySlider_), QSignalBlocker(grainSlider_),
+        QSignalBlocker(vignetteSlider_), QSignalBlocker(temperatureSlider_),
+        QSignalBlocker(tintSlider_), QSignalBlocker(contrastSlider_),
+        QSignalBlocker(brightnessSlider_), QSignalBlocker(saturationSlider_),
+        QSignalBlocker(highlightsSlider_), QSignalBlocker(shadowsSlider_)
+    };
     intensitySlider_->setValue(static_cast<int>(p.intensity));
     grainSlider_->setValue(static_cast<int>(p.grainAmount));
     vignetteSlider_->setValue(static_cast<int>(p.vignetteStrength));
@@ -216,6 +224,7 @@ std::string FilterPanel::selectedPresetId() const {
 
 void FilterPanel::setSelectedPreset(const std::string& presetId) {
     QString qid = QString::fromStdString(presetId);
+    QSignalBlocker blocker(presetList_);
     for (int i = 0; i < presetList_->count(); ++i) {
         if (presetList_->item(i)->data(Qt::UserRole).toString() == qid) {
             presetList_->setCurrentRow(i);

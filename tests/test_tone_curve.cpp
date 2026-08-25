@@ -65,6 +65,7 @@ TEST(ToneCurve, ApplyToPixels) {
     curve.setContrastCurve(30.0f);
     std::vector<uint8_t> pixels = {128, 128, 128, 64, 64, 64};
     curve.apply(pixels.data(), 2);
-    // Pixels should be modified
-    EXPECT_NE(pixels[0], 128);
+    // Contrast preserves the midpoint but changes darker tones.
+    EXPECT_EQ(pixels[0], 128);
+    EXPECT_NE(pixels[3], 64);
 }

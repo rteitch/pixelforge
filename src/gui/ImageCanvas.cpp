@@ -22,6 +22,7 @@ struct ImageCanvas::Impl {
     QPointF panOffset{0, 0};
     QPointF lastMousePos{0, 0};
     bool panning = false;
+    bool draggingSplit = false;
 
     QPointF imageOffset{0, 0}; // top-left of image in widget coords
     QSizeF scaledSize{0, 0};
@@ -281,6 +282,17 @@ void ImageCanvas::resizeEvent(QResizeEvent*) {
 // ============================================================
 
 void ImageCanvas::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton && impl_->comparisonEnabled &&
+        !impl_->comparisonPixmap.isNull() && !impl_->currentPixmap.isNull()) {
+        float splitX = impl_->imageOffset.x() +
+                       impl_->scaledSize.width() * impl_->splitPosition;
+        if (std::abs(event->position().x() - splitX) <= 12.0f) {
+            impl_->draggingSplit = true;
+            setCursor(Qt::SizeHorCursor);
+            return;
+        }
+    }
+
     if (event->button() == Qt::MiddleButton || event->button() == Qt::LeftButton) {
         impl_->panning = true;
         impl_->lastMousePos = event->position();
@@ -289,6 +301,13 @@ void ImageCanvas::mousePressEvent(QMouseEvent* event) {
 }
 
 void ImageCanvas::mouseMoveEvent(QMouseEvent* event) {
+    if (impl_->draggingSplit) {
+        float position = (event->position().x() - impl_->imageOffset.x()) /
+                         std::max(1.0, impl_->scaledSize.width());
+        setSplitPosition(position);
+        return;
+    }
+
     if (impl_->panning) {
         QPointF delta = event->position() - impl_->lastMousePos;
         impl_->panOffset += delta;
@@ -298,6 +317,12 @@ void ImageCanvas::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void ImageCanvas::mouseReleaseEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton && impl_->draggingSplit) {
+        impl_->draggingSplit = false;
+        setCursor(Qt::ArrowCursor);
+        return;
+    }
+
     if (event->button() == Qt::MiddleButton || event->button() == Qt::LeftButton) {
         impl_->panning = false;
         setCursor(Qt::ArrowCursor);

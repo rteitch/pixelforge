@@ -14,6 +14,9 @@
 #include <QMenuBar>
 #include <QToolBar>
 #include <QLabel>
+#include <QListWidget>
+#include <QPushButton>
+#include <QSlider>
 #include <QTimer>
 
 namespace PixelForge {
@@ -41,6 +44,7 @@ protected:
 private slots:
     // File menu
     void onOpenFile();
+    void onCloseImage();
     void onSaveProject();
     void onOpenProject();
     void onExportImage();
@@ -60,6 +64,7 @@ private slots:
 
     // Processing
     void onGenerateWap();
+    void onGenerateWapPreview();
     void onApplyFilter(const std::string& presetId);
     void onFilterParamsChanged();
     void onThemeToggle();
@@ -73,6 +78,7 @@ private slots:
     void onLoadPlugin();
     void onLoadPluginDirectory();
     void onApplyAiStyle();
+    void onHardwareDiagnostics();
 
 private:
     // Core modules
@@ -93,6 +99,14 @@ private:
     QLabel* statusLabel_ = nullptr;
     QLabel* zoomLabel_ = nullptr;
     QLabel* sizeLabel_ = nullptr;
+    QListWidget* layerList_ = nullptr;
+    QSlider* layerOpacitySlider_ = nullptr;
+    QPushButton* removeLayerBtn_ = nullptr;
+    QPushButton* moveLayerUpBtn_ = nullptr;
+    QPushButton* moveLayerDownBtn_ = nullptr;
+    QTimer wapPreviewTimer_;
+    std::string activeFilterLayerId_;
+    std::string activeWapLayerId_;
 
     // Current mode
     enum class EditMode { Filter, Wap };
@@ -108,6 +122,12 @@ private:
     void updateTitle();
     void updatePreview();
     void loadImageFromFile(const std::string& path);
+    bool confirmImageReplacement();
+    void restoreProjectPreview();
+    void refreshLayerPanel();
+    void rebuildPreviewFromLayers();
+    void applyWapResult(const Image& result, const WapParameters& params,
+                        bool addHistory);
 };
 
 } // namespace PixelForge

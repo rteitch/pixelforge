@@ -51,3 +51,8 @@ TEST(ColorQuantization, AssignLabels) {
     EXPECT_EQ(labels[0], 0); // black -> black palette
     EXPECT_EQ(labels[1], 1); // white -> white palette
 }
+
+TEST(ColorQuantization, ThemedPaletteSizes) {
+    EXPECT_EQ(ColorQuantization::sunsetPalette(10).size(), 10u);
+    EXPECT_EQ(ColorQuantization::oceanPalette(10).size(), 10u);
+}

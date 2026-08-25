@@ -51,14 +51,14 @@ TEST(HistoryManager, UndoRedo) {
     // Undo
     Image undone = history.undo();
     EXPECT_FALSE(undone.isEmpty());
-    EXPECT_EQ(history.currentPosition(), 1);
+    EXPECT_EQ(history.currentPosition(), 0);
     EXPECT_EQ(history.currentDescription(), "State 1");
     EXPECT_TRUE(history.canRedo());
 
     // Redo
     Image redone = history.redo();
     EXPECT_FALSE(redone.isEmpty());
-    EXPECT_EQ(history.currentPosition(), 2);
+    EXPECT_EQ(history.currentPosition(), 1);
     EXPECT_EQ(history.currentDescription(), "State 2");
     EXPECT_FALSE(history.canRedo());
 }
@@ -74,7 +74,7 @@ TEST(HistoryManager, UndoClearsRedoStack) {
     history.undo();
     history.pushState(img3, "State 3"); // Should clear redo of State 2
 
-    EXPECT_EQ(history.historyCount(), 3); // State 1, State 2, State 3
+    EXPECT_EQ(history.historyCount(), 2); // State 1, State 3
     EXPECT_FALSE(history.canRedo());
 }
 

@@ -85,7 +85,7 @@ void BatchProcessor::processParallel(
             }
 
             if (progress) progress(i, total_, config.inputPaths[i]);
-            results[i] = processSingle(config.inputPaths[i], config, fileProgress);
+            results[i] = processSingle(config.inputPaths[i], config, fileProgress, i);
             completed_ = i + 1;
         }
         return;
@@ -104,7 +104,7 @@ void BatchProcessor::processParallel(
                 if (progress) progress(idx, total_, config.inputPaths[idx]);
             }
 
-            results[idx] = processSingle(config.inputPaths[idx], config, fileProgress);
+            results[idx] = processSingle(config.inputPaths[idx], config, fileProgress, idx);
             completed_ = idx + 1;
         }
     };
@@ -128,7 +128,8 @@ void BatchProcessor::processParallel(
 BatchJobResult BatchProcessor::processSingle(
     const std::string& inputPath,
     const BatchJobConfig& config,
-    ProgressCallback progress)
+    ProgressCallback progress,
+    int index)
 {
     BatchJobResult result;
     result.inputPath = inputPath;
@@ -150,9 +151,12 @@ BatchJobResult BatchProcessor::processSingle(
         // Apply preset
         if (progress) progress(0.3f, "Processing...");
         if (config.useWapMode) {
-            output = wapModule_.generate(input, config.wapParams, progress);
+            WapModule wapModule;
+            output = wapModule.generate(input, config.wapParams, progress);
         } else {
-            output = gradingModule_.applyPreset(input, config.presetId, config.filterParams, progress);
+            ColorGradingModule gradingModule;
+            output = gradingModule.applyPreset(input, config.presetId,
+                                               config.filterParams, progress);
         }
 
         // Generate output path using naming pattern
@@ -171,6 +175,7 @@ BatchJobResult BatchProcessor::processSingle(
 
         replaceAll(namePattern, "{name}", baseName);
         replaceAll(namePattern, "{preset}", config.presetId.empty() ? "wap" : config.presetId);
+        replaceAll(namePattern, "{index}", std::to_string(index + 1));
 
         std::string ext = config.outputFormat;
         if (ext[0] != '.') ext = "." + ext;

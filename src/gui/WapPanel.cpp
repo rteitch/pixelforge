@@ -1,5 +1,9 @@
 #include "WapPanel.h"
 
+#include <QColorDialog>
+#include <QDialogButtonBox>
+#include <QListWidget>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -52,8 +56,15 @@ void WapPanel::setupUi() {
     paletteCombo_->addItem("Vibrant", static_cast<int>(WapPalettePreset::Vibrant));
     paletteCombo_->addItem("Pastel", static_cast<int>(WapPalettePreset::Pastel));
     paletteCombo_->addItem("Mono + Accent", static_cast<int>(WapPalettePreset::MonochromeAccent));
-    paletteCombo_->addItem("Auto (K-Means)", static_cast<int>(WapPalettePreset::Custom));
+    paletteCombo_->addItem("Sunset", static_cast<int>(WapPalettePreset::Sunset));
+    paletteCombo_->addItem("Ocean", static_cast<int>(WapPalettePreset::Ocean));
+    paletteCombo_->addItem("Auto (K-Means)", static_cast<int>(WapPalettePreset::Auto));
+    paletteCombo_->addItem("Custom Palette", static_cast<int>(WapPalettePreset::Custom));
     formLayout->addRow("Palette:", paletteCombo_);
+
+    editPaletteBtn_ = new QPushButton("Edit Custom Palette...");
+    editPaletteBtn_->setEnabled(false);
+    formLayout->addRow(editPaletteBtn_);
 
     // Face detection
     faceDetectionCheck_ = new QCheckBox("Enable face detection");
@@ -101,7 +112,93 @@ void WapPanel::connectSignals() {
             this, &WapPanel::parametersChanged);
 
     connect(paletteCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &WapPanel::parametersChanged);
+            this, [this](int index) {
+                editPaletteBtn_->setEnabled(
+                    paletteCombo_->itemData(index).toInt() ==
+                    static_cast<int>(WapPalettePreset::Custom));
+                emit parametersChanged();
+            });
+
+    connect(editPaletteBtn_, &QPushButton::clicked, this, [this]() {
+        QDialog dialog(this);
+        dialog.setWindowTitle("Custom WPAP Palette");
+        dialog.setMinimumSize(360, 300);
+        auto* layout = new QVBoxLayout(&dialog);
+        auto* list = new QListWidget;
+        std::vector<Color3u8> workingPalette = customPalette_;
+        auto refresh = [&workingPalette, list]() {
+            list->clear();
+            for (const auto& color : workingPalette) {
+                auto* item = new QListWidgetItem(
+                    QString("#%1%2%3")
+                        .arg(color.r, 2, 16, QChar('0'))
+                        .arg(color.g, 2, 16, QChar('0'))
+                        .arg(color.b, 2, 16, QChar('0')).toUpper());
+                item->setBackground(QColor(color.r, color.g, color.b));
+                item->setForeground(QColor(
+                    color.r + color.g + color.b > 360 ? Qt::black : Qt::white));
+                list->addItem(item);
+            }
+        };
+        refresh();
+        layout->addWidget(list);
+
+        auto* paletteButtons = new QHBoxLayout;
+        auto* add = new QPushButton("Add");
+        auto* edit = new QPushButton("Edit");
+        auto* remove = new QPushButton("Remove");
+        paletteButtons->addWidget(add);
+        paletteButtons->addWidget(edit);
+        paletteButtons->addWidget(remove);
+        paletteButtons->addStretch();
+        layout->addLayout(paletteButtons);
+
+        connect(add, &QPushButton::clicked, &dialog,
+            [this, &workingPalette, refresh]() {
+            QColor color = QColorDialog::getColor(Qt::white, this, "Add Palette Color");
+            if (color.isValid() && workingPalette.size() < 32) {
+                workingPalette.push_back({static_cast<uint8_t>(color.red()),
+                                          static_cast<uint8_t>(color.green()),
+                                          static_cast<uint8_t>(color.blue())});
+                refresh();
+            }
+        });
+        connect(edit, &QPushButton::clicked, &dialog,
+            [this, &workingPalette, list, refresh]() {
+            int row = list->currentRow();
+            if (row < 0 || row >= static_cast<int>(workingPalette.size())) return;
+            const auto& old = workingPalette[row];
+            QColor color = QColorDialog::getColor(
+                QColor(old.r, old.g, old.b), this, "Edit Palette Color");
+            if (color.isValid()) {
+                workingPalette[row] = {static_cast<uint8_t>(color.red()),
+                                       static_cast<uint8_t>(color.green()),
+                                       static_cast<uint8_t>(color.blue())};
+                refresh();
+            }
+        });
+        connect(remove, &QPushButton::clicked, &dialog,
+                [&workingPalette, list, refresh]() {
+            int row = list->currentRow();
+            if (row >= 0 && row < static_cast<int>(workingPalette.size())) {
+                workingPalette.erase(workingPalette.begin() + row);
+                refresh();
+            }
+        });
+
+        auto* dialogButtons = new QDialogButtonBox(
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        layout->addWidget(dialogButtons);
+        connect(dialogButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        connect(dialogButtons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+        if (dialog.exec() == QDialog::Accepted) {
+            customPalette_ = std::move(workingPalette);
+            paletteCombo_->setCurrentIndex(paletteCombo_->findData(
+                static_cast<int>(WapPalettePreset::Custom)));
+            emit parametersChanged();
+        }
+    });
 
     connect(faceDetectionCheck_, &QCheckBox::toggled,
             this, &WapPanel::parametersChanged);
@@ -123,16 +220,25 @@ WapParameters WapPanel::currentParams() const {
     params.palettePreset = static_cast<WapPalettePreset>(paletteCombo_->currentData().toInt());
     params.faceDetectionEnabled = faceDetectionCheck_->isChecked();
     params.faceDetailBoost = faceBoostSlider_->value() / 100.0f;
+    params.customPalette = customPalette_;
     return params;
 }
 
 void WapPanel::setParams(const WapParameters& params) {
+    QSignalBlocker blockers[] = {
+        QSignalBlocker(colorCountSlider_), QSignalBlocker(detailCombo_),
+        QSignalBlocker(customPointSpin_), QSignalBlocker(paletteCombo_),
+        QSignalBlocker(faceDetectionCheck_), QSignalBlocker(faceBoostSlider_)
+    };
     colorCountSlider_->setValue(params.colorCount);
     detailCombo_->setCurrentIndex(static_cast<int>(params.detailLevel));
     customPointSpin_->setValue(params.customPointCount);
     paletteCombo_->setCurrentIndex(static_cast<int>(params.palettePreset));
     faceDetectionCheck_->setChecked(params.faceDetectionEnabled);
     faceBoostSlider_->setValue(static_cast<int>(params.faceDetailBoost * 100));
+    customPalette_ = params.customPalette;
+    int paletteIndex = paletteCombo_->findData(static_cast<int>(params.palettePreset));
+    if (paletteIndex >= 0) paletteCombo_->setCurrentIndex(paletteIndex);
 }
 
 } // namespace PixelForge

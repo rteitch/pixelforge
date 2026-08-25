@@ -58,7 +58,8 @@ private:
     BatchJobResult processSingle(
         const std::string& inputPath,
         const BatchJobConfig& config,
-        ProgressCallback progress
+        ProgressCallback progress,
+        int index
     );
 
     /// Generate output path from input path and config

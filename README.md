@@ -4,6 +4,8 @@
 
 PixelForge is a cross-platform desktop application for transforming photos into art styles and cinematic filters — completely offline, fast, and reproducible.
 
+For the complete application workflow and shortcut reference, see the [User Guide](docs/USER_GUIDE.md).
+
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![C++](https://img.shields.io/badge/C%2B%2B-20-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-yellow)
@@ -95,19 +97,45 @@ PixelForge is a cross-platform desktop application for transforming photos into 
 | OpenMP | (optional) | Parallel processing acceleration |
 | GoogleTest | (optional) | Unit testing |
 
-### Using vcpkg (Recommended)
+### Windows Setup (Visual Studio + vcpkg)
+
+Install Visual Studio 2022 with the **Desktop development with C++** workload and Git. The commands below install vcpkg next to the project directory, at `D:\Project\vcpkg`.
+
+```powershell
+cd D:\Project\PixelForge
+
+# Install vcpkg if not already installed
+git clone https://github.com/microsoft/vcpkg.git ..\vcpkg
+..\vcpkg\bootstrap-vcpkg.bat
+
+# Install dependencies
+..\vcpkg\vcpkg.exe install qtbase opencv4 gtest --triplet x64-windows
+
+# Configure and build with Visual Studio 2022
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+    -DCMAKE_TOOLCHAIN_FILE="..\vcpkg\scripts\buildsystems\vcpkg.cmake"
+cmake --build build --config Release
+
+# Copy Qt platform plugins required at runtime
+New-Item -ItemType Directory -Force build\Release\platforms | Out-Null
+Copy-Item ..\vcpkg\installed\x64-windows\Qt6\plugins\platforms\* `
+    build\Release\platforms\ -Force
+Copy-Item ..\vcpkg\installed\x64-windows\bin\Qt6*.dll build\Release\ -Force
+```
+
+### Using vcpkg (Linux/macOS)
 
 ```bash
 # Install vcpkg if not already installed
 git clone https://github.com/microsoft/vcpkg.git
-./vcpkg/bootstrap-vcpkg.bat  # Windows
-# ./vcpkg/bootstrap-vcpkg.sh  # Linux/macOS
+./vcpkg/bootstrap-vcpkg.sh
 
 # Install dependencies
-./vcpkg install qt6 opencv4 gtest
+./vcpkg/vcpkg install qtbase opencv4 gtest
 
-# Build
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=./vcpkg/scripts/buildsystems/vcpkg.cmake
+# Configure and build
+cmake -S . -B build \
+    -DCMAKE_TOOLCHAIN_FILE=./vcpkg/scripts/buildsystems/vcpkg.cmake
 cmake --build build --config Release
 ```
 
@@ -124,15 +152,34 @@ cmake --build build
 
 ### Run
 
+#### Windows
+
+```powershell
+Start-Process .\build\Release\PixelForge.exe
+
+# CLI mode
+.\build\Release\PixelForge.exe --cli -p cinematic_teal_orange -o output.png input.jpg
+```
+
+#### Linux/macOS
+
 ```bash
 # GUI mode
 ./build/PixelForge
 
-# CLI mode (future)
+# CLI mode
 ./build/PixelForge --cli -p cinematic_teal_orange -o output.png input.jpg
 ```
 
 ### Run Tests
+
+#### Windows
+
+```powershell
+ctest --test-dir build -C Release --output-on-failure
+```
+
+#### Linux/macOS
 
 ```bash
 cd build

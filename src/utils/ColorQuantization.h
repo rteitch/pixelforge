@@ -47,6 +47,8 @@ public:
     static std::vector<Color3u8> vibrantPalette(int k = 16);
     static std::vector<Color3u8> pastelPalette(int k = 16);
     static std::vector<Color3u8> monochromeAccentPalette(int k = 16);
+    static std::vector<Color3u8> sunsetPalette(int k = 16);
+    static std::vector<Color3u8> oceanPalette(int k = 16);
 
     /// Compute mean color of a group of pixels
     static Color3u8 meanColor(

@@ -12,7 +12,7 @@ option(PIXELFORGE_BUILD_TESTS "Build unit tests" ON)
 option(PIXELFORGE_USE_SYSTEM_OPENCV "Use system OpenCV" OFF)
 
 # Find dependencies
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Core Gui)
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Core Gui Concurrent)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc photo highgui imgcodecs objdetect)
 find_package(Threads REQUIRED)
 
@@ -75,6 +75,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::OpenGLWidgets
     Qt6::Core
     Qt6::Gui
+    Qt6::Concurrent
     ${OpenCV_LIBS}
     Threads::Threads
 )

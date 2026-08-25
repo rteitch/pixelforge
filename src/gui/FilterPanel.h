@@ -3,12 +3,17 @@
 #include "core/CoreTypes.h"
 
 #include <QWidget>
+#include <QHBoxLayout>
 #include <QSlider>
 #include <QComboBox>
 #include <QPushButton>
 #include <QLabel>
 #include <QListWidget>
 #include <QLineEdit>
+
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace PixelForge {
 

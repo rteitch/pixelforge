@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QLineEdit>
 #include <QTableWidget>
 #include <QThread>
@@ -41,6 +42,7 @@ private:
     QTableWidget* fileList_ = nullptr;
     QLineEdit* outputDirEdit_ = nullptr;
     QComboBox* presetCombo_ = nullptr;
+    QCheckBox* wapModeCheck_ = nullptr;
     QComboBox* formatCombo_ = nullptr;
     QLineEdit* namingPatternEdit_ = nullptr;
     QSlider* qualitySlider_ = nullptr;

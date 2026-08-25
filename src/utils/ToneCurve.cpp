@@ -49,6 +49,15 @@ float ToneCurve::splineInterpolate(
     if (input <= points.front().input) return points.front().output;
     if (input >= points.back().input) return points.back().output;
 
+    if (points.size() == 2) {
+        float range = points[1].input - points[0].input;
+        if (std::abs(range) < 1e-10f) return points[0].output;
+        float t = (input - points[0].input) / range;
+        return std::clamp(points[0].output +
+                          (points[1].output - points[0].output) * t,
+                          0.0f, 1.0f);
+    }
+
     // Find the two control points that bracket the input
     int n = static_cast<int>(points.size());
     int segIdx = 0;

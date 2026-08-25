@@ -224,6 +224,12 @@ std::vector<Color3u8> WapModule::computePalette(
             return ColorQuantization::pastelPalette(params.colorCount);
         case WapPalettePreset::MonochromeAccent:
             return ColorQuantization::monochromeAccentPalette(params.colorCount);
+        case WapPalettePreset::Sunset:
+            return ColorQuantization::sunsetPalette(params.colorCount);
+        case WapPalettePreset::Ocean:
+            return ColorQuantization::oceanPalette(params.colorCount);
+        case WapPalettePreset::Auto:
+            return ColorQuantization::quantizeImage(input, params.colorCount);
         case WapPalettePreset::Custom:
             if (!params.customPalette.empty()) return params.customPalette;
             // Fallback to k-means
@@ -384,12 +390,12 @@ Image WapModule::generate(const Image& input, const WapParameters& params,
 
     // Draw thin triangle edges for the geometric look
     for (const auto& tri : impl_->triangles) {
-        cv::Point pts[3] = {
+        std::vector<cv::Point> pts = {
             {static_cast<int>(tri.vertices[0].x), static_cast<int>(tri.vertices[0].y)},
             {static_cast<int>(tri.vertices[1].x), static_cast<int>(tri.vertices[1].y)},
             {static_cast<int>(tri.vertices[2].x), static_cast<int>(tri.vertices[2].y)}
         };
-        cv::polylines(outMat, pts, 3, true,
+        cv::polylines(outMat, pts, true,
                       cv::Scalar(30, 30, 30), 1, cv::LINE_AA);
     }
 

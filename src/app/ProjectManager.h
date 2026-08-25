@@ -23,6 +23,7 @@ public:
     const Image& sourceImage() const;
     const Image& currentImage() const;
     void setCurrentImage(const Image& image, const std::string& description);
+    void restoreCurrentImage(const Image& image);
 
     // ---- Adjustment Layers ----
     void addLayer(const AdjustmentLayer& layer);

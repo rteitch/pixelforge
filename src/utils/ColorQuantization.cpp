@@ -392,4 +392,26 @@ std::vector<Color3u8> ColorQuantization::monochromeAccentPalette(int k) {
     return std::vector<Color3u8>(base.begin(), base.begin() + k);
 }
 
+std::vector<Color3u8> ColorQuantization::sunsetPalette(int k) {
+    std::vector<Color3u8> base = {
+        {35, 24, 65}, {65, 28, 85}, {105, 35, 100}, {155, 45, 95},
+        {205, 65, 75}, {235, 90, 55}, {250, 125, 45}, {255, 165, 60},
+        {255, 205, 105}, {255, 230, 160}, {90, 45, 55}, {125, 55, 45},
+        {180, 75, 50}, {220, 110, 70}, {240, 145, 90}, {250, 185, 120}
+    };
+    if (k >= static_cast<int>(base.size())) return base;
+    return std::vector<Color3u8>(base.begin(), base.begin() + k);
+}
+
+std::vector<Color3u8> ColorQuantization::oceanPalette(int k) {
+    std::vector<Color3u8> base = {
+        {8, 25, 55}, {10, 45, 85}, {10, 70, 110}, {12, 100, 135},
+        {15, 135, 155}, {25, 170, 170}, {65, 195, 180}, {120, 215, 185},
+        {180, 230, 205}, {220, 240, 220}, {25, 45, 70}, {35, 75, 105},
+        {45, 105, 135}, {70, 140, 155}, {100, 170, 170}, {150, 200, 190}
+    };
+    if (k >= static_cast<int>(base.size())) return base;
+    return std::vector<Color3u8>(base.begin(), base.begin() + k);
+}
+
 } // namespace PixelForge

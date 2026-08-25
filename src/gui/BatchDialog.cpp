@@ -78,6 +78,9 @@ void BatchDialog::setupUi() {
     presetCombo_ = new QComboBox;
     configLayout->addRow("Preset:", presetCombo_);
 
+    wapModeCheck_ = new QCheckBox("Apply WPAP instead of filter");
+    configLayout->addRow(wapModeCheck_);
+
     formatCombo_ = new QComboBox;
     formatCombo_->addItem("PNG", "png");
     formatCombo_->addItem("JPEG", "jpg");
@@ -223,6 +226,7 @@ void BatchDialog::setRunning(bool running) {
     startBtn_->setEnabled(!running);
     cancelBtn_->setEnabled(running);
     presetCombo_->setEnabled(!running);
+    wapModeCheck_->setEnabled(!running);
     formatCombo_->setEnabled(!running);
     namingPatternEdit_->setEnabled(!running);
     qualitySlider_->setEnabled(!running);
@@ -257,6 +261,7 @@ void BatchDialog::onStart() {
     config.jpegQuality = qualitySlider_->value();
     config.namingPattern = namingPatternEdit_->text().toStdString();
     config.presetId = presetCombo_->currentData().toString().toStdString();
+    config.useWapMode = wapModeCheck_->isChecked();
 
     // Run in background thread with watcher for completion
     auto* watcher = new QFutureWatcher<std::vector<BatchJobResult>>(this);

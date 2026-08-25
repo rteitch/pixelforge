@@ -78,7 +78,10 @@ enum class WapPalettePreset {
     Vibrant = 0,
     Pastel = 1,
     MonochromeAccent = 2,
-    Custom = 3
+    Sunset = 3,
+    Ocean = 4,
+    Auto = 5,
+    Custom = 6
 };
 
 enum class FilterCategory {
